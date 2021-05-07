@@ -153,7 +153,7 @@
 135. 电台 - 节目榜
 136. 电台 - 新晋电台榜/热门电台榜
 137. 类别热门电台
-138. 云村热评
+138. 云村热评(官方下架,暂不能用)
 139. 电台24小时节目榜
 140. 电台24小时主播榜
 141. 电台最热主播榜
@@ -213,6 +213,15 @@
 195. 关注歌手新歌
 196. 关注歌手新MV
 197. 歌手详情
+198. 云盘上传
+199. 二维码登录
+200. 话题详情
+201. 话题详情热门动态
+202. 歌单详情动态
+203. 绑定手机
+204. 一起听状态
+205. 用户历史评论
+206. 云盘歌曲信息匹配纠正
 
 ## 安装
 
@@ -249,6 +258,17 @@ windows 下使用 git-bash 或者 cmder 等终端执行以下命令 :
 ```shell
 $ set HOST=127.0.0.1 && node app.js
 ```
+
+## Vercel 部署
+v4.0.8 加入了 Vercel 配置文件,可以直接在 Vercel 下部署了,不需要自己的服务器(访问Vercel部署的接口,需要额外加一个realIP参数,如 `/song/url?id=191254&realIP=116.25.146.177`)
+### 操作方法
+1. fork 此项目
+2. 在 Vercel 官网点击 `New Project`
+3. 点击 `Import Git Repository` 并选择你 fork 的此项目并点击`import`
+4. 点击 `PERSONAL ACCOUNT` 的 `select`
+5. 直接点`Continue`
+6. `PROJECT NAME`自己填,`FRAMEWORK PRESET` 选 `Other` 然后直接点 `Deploy` 接着等部署完成即可  
+
 ## 可以使用代理
 
 在 query 参数中加上 proxy=your-proxy 即可让这一次的请求使用 proxy
@@ -352,14 +372,14 @@ $ sudo docker run -d -p 3000:3000 netease-music-api
 存结果的接口 , 可在请求 url 后面加一个时间戳参数使 url 不同 , 例子 :
 `/simi/playlist?id=347230&timestamp=1503019930000` (之所以加入缓存机制是因为项目早期没有缓存机制，很多  issues 都是报 IP高频，请按自己需求改造缓存中间件(app.js)，源码不复杂)
 
-!> 如果是跨域请求 , 请在所有请求带上 `xhrFields: { withCredentials: true }` (axios 为 `withCredentials: true`)否则
+!> 如果是跨域请求 , 请在所有请求带上 `xhrFields: { withCredentials: true }` (axios 为 `withCredentials: true`, Fetch API 为 `fetch(url, { credentials: 'include' })`), 或直接手动传入cookie (参见 `登录`), 否则
 可能会因为没带上 cookie 导致 301, 具体例子可看 `public/test.html`, 访问`http://localhost:3000/test.html`(默认端口的话) 例子使用 jQuery 和 axios 
 
 !> 301 错误基本都是没登录就调用了需要登录的接口,如果登录了还是提示 301, 基本都是缓存把数据缓存起来了,解决方法是加时间戳或者等待 2 分钟或者重启服务重新登录后再调用接口,可自行改造缓存方法
 
 !> 部分接口如登录接口不能调用太频繁 , 否则可能会触发 503 错误或者 ip 高频错误 ,若需频繁调用 , 需要准备 IP 代理池 (更新:已加入缓存机制,但仍需注意).
 
-!> 本项目仅供学习使用,请尊重版权，请勿利用此项目从事商业行为
+!> 本项目仅供学习使用,请尊重版权，请勿利用此项目从事商业行为或进行破坏版权行为
 
 !> 文档可能会有缓存 , 如果文档版本和 github 上的版本不一致,请清除缓存再查看
 
@@ -373,7 +393,7 @@ $ sudo docker run -d -p 3000:3000 netease-music-api
 
 ### 登录
 
-说明 : 登录有两个接口,建议使用`encodeURIComponent`对密码编码或者使用`POST`请求,避免某些特殊字符无法解析,如`#`(`#`在url中会被识别为hash,而不是query)
+说明 : 登录有三个接口,建议使用`encodeURIComponent`对密码编码或者使用`POST`请求,避免某些特殊字符无法解析,如`#`(`#`在url中会被识别为hash,而不是query)
 
 #### 1. 手机登录
 
@@ -412,13 +432,43 @@ $ sudo docker run -d -p 3000:3000 netease-music-api
 完成登录后 , 会在浏览器保存一个 Cookies 用作登录凭证 , 大部分 API 都需要用到这个
 Cookies,非跨域情况请求会自动带上 Cookies,跨域情况参考`调用前须知`
 
-v3.30.0后支持手动传入cookie,登录接口返回内容新增 `cookie` 字段,保存到本地后,get请求带上`?cookie=xxx` 或者 post请求body带上 `cookie` 即可,如:`/user/cloud?cookie=xxx` 或者
+v3.30.0后支持手动传入cookie,登录接口返回内容新增 `cookie` 字段,保存到本地后,get请求带上`?cookie=xxx` (先使用 `encodeURIComponent()` 编码 cookie 值) 或者 post请求body带上 `cookie` 即可,如:`/user/cloud?cookie=xxx` 或者
 ```
 {
     ...,
     cookie:"xxx"
 }
 ```
+#### 3. 二维码登录
+说明: 二维码登录涉及到3个接口,调用务必带上时间戳,防止缓存
+##### 1. 二维码key生成接口  
+
+说明: 调用此接口可生成一个key  
+
+**接口地址 :** `/login/qr/key`
+##### 2. 二维码生成接口
+说明: 调用此接口传入上一个接口生成的key可生成二维码图片的base64和二维码信息,可使用base64展示图片,或者使用二维码信息内容自行使用第三方二维码生产库渲染二维码  
+
+必选参数: `key`,由第一个接口生成  
+
+可选参数: `qrimg` 传入后会额外返回二维码图片base64编码  
+
+**接口地址 :** `/login/qr/create`  
+
+**调用例子 :** `/login/qr/create?key=xxx`  
+
+
+##### 3.  二维码检测扫码状态接口
+说明: 轮询此接口可获取二维码扫码状态,800为二维码过期,801为等待扫码,802为待确认,803为授权登录成功(803状态码下会返回cookies)
+
+必选参数: `key`,由第一个接口生成  
+
+**接口地址 :** `/login/qr/check`
+
+**调用例子 :** `/login/qr/check?key=xxx`  
+
+调用可参考项目文件例子`/public/qrlogin.html` (访问地址:http://localhost:3000/qrlogin.html)
+
 
 #### 注意
 
@@ -442,8 +492,6 @@ v3.30.0后支持手动传入cookie,登录接口返回内容新增 `cookie` 字�
 **接口地址 :** `/captcha/sent`
 
 **调用例子 :** `/captcha/sent?phone=13xxx`
-
-
 
 ### 验证验证码
 
@@ -476,16 +524,22 @@ v3.30.0后支持手动传入cookie,登录接口返回内容新增 `cookie` 字�
 
 `nickname`: 昵称
 
+**可选参数 :**  
+
+`countrycode`: 国家码，用于国外手机号，例如美国传入：`1` ,默认86即中国
+
 **接口地址 :** `/register/cellphone`
 
 **调用例子 :** `/register/cellphone?phone=13xxx&password=xxxxx&captcha=1234&nickname=binary1345`
 
 ### 检测手机号码是否已注册
 说明 : 调用此接口 ,可检测手机号码是否已注册  
-**必选参数 :** 
+**必选参数 :**  
 `phone` :  手机号码  
-**可选参数 :**
-`countrycode`: 国家码，用于国外手机号，例如美国传入：`1` 
+
+**可选参数 :**  
+`countrycode`: 国家码，用于国外手机号，例如美国传入：`1` ,默认86即中国  
+
 **接口地址 :** `/cellphone/existence/check`
 
 **调用例子 :** `/cellphone/existence/check?phone=13xxx`
@@ -622,7 +676,7 @@ signature：用户签名
 **调用例子 :** `/user/update?gender=0&signature=测试签名&city=440300&nickname=binary&birthday=1525918298004&province=440000`
 
 ### 更新头像
-说明 : 登录后调用此接口,使用`'Content-Type': 'multipart/form-data'`上传图片formData(name为'imgFile'),可更新头像(参考:https://github.com/Binaryify/NeteaseCloudMusicApi/blob/master/public/avatar_update.html)
+说明 : 登录后调用此接口,使用`'Content-Type': 'multipart/form-data'`上传图片formData(name为'imgFile'),可更新头像(参考:https://github.com/Binaryify/NeteaseCloudMusicApi/blob/master/public/avatar_update.html),支持命令行调用,参考module_example目录下`avatar_upload.js`
 
 **可选参数 :**
 
@@ -767,6 +821,22 @@ tags: 歌单标签
 
 **调用例子 :** `/song/order/update?pid=2039116066&ids=[5268328,1219871]` 
 
+### 获取用户历史评论
+
+说明 : 登录后调用此接口 , 传入用户 id, 可以获取用户历史评论
+
+**必选参数 :** `uid` : 用户 id  
+
+**可选参数 :**   
+
+`limit` : 返回数量 , 默认为 10
+
+`time`: 上一条数据的time,第一页不需要传,默认为0
+
+**接口地址 :** `/user/comment/history`
+
+**调用例子 :** `/user/comment/history?uid=32953014` `/user/comment/history?uid=32953014&limit=1&time=1616217577564`  (需要换成自己的用户id)
+
 ### 获取用户电台
 
 说明 : 登录后调用此接口 , 传入用户 id, 可以获取用户电台
@@ -799,14 +869,14 @@ tags: 歌单标签
 
 **必选参数 :** `uid` : 用户 id  
 
-**可选参数 :** `limit` : 返回数量 , 默认为 30   
+**可选参数 :** 
+`limit` : 返回数量 , 默认为 30   
 
-`lasttime` : 返回数据的 `lasttime` ,默认-1,传入上一次返回结果的 lasttime,将会返回下一页的数据
-
+`offset` : 偏移数量，用于分页 ,如 :( 页数 -1)\*30, 其中 30 为 limit 的值 , 默认为 0
 
 **接口地址 :** `/user/followeds`
 
-**调用例子 :** `/user/followeds?uid=32953014` `/user/followeds?uid=416608258&time=1560152549136`
+**调用例子 :** `/user/followeds?uid=32953014` `/user/followeds?uid=416608258&limit=1` `/user/followeds?uid=416608258&limit=1&offset=1`
 
 ### 获取用户动态
 
@@ -918,8 +988,23 @@ tags: 歌单标签
 
 **调用例子 :** `/hot/topic?limit=30&offset=30`
 
+### 获取话题详情
 
-### 云村热评
+说明 : 调用此接口 , 可获取话题详情
+
+**接口地址 :** `/topic/detail`
+
+**调用例子 :** `/topic/detail?actid=111551188`
+### 获取话题详情热门动态
+
+说明 : 调用此接口 , 可获取话题详情热门动态
+
+**接口地址 :** `/topic/detail/event/hot`
+
+**调用例子 :** `/topic/detail/event/hot?actid=111551188`
+
+
+### 云村热评(官方下架,暂不能用)
 说明 : 登录后调用此接口 , 可获取云村热评
 
 **接口地址 :** `/comment/hotwall/list`
@@ -1172,12 +1257,19 @@ tags: 歌单标签
 
 **调用例子 :** `/playlist/detail?id=24381616`
 
-返回数据如下图 :
-![歌单详情](https://raw.githubusercontent.com/Binaryify/NeteaseCloudMusicApi/master/static/%E6%AD%8C%E5%8D%95%E8%AF%A6%E6%83%85.png)
+### 歌单详情动态
+
+说明 : 调用后可获取歌单详情动态部分,如评论数,是否收藏,播放数
+
+**必选参数 :** `id` : 歌单 id
+
+**接口地址 :** `/playlist/detail/dynamic`
+
+**调用例子 :** `/playlist/detail/dynamic?id=24381616`
 
 ### 获取音乐 url
 
-说明 : 使用歌单详情接口后 , 能得到的音乐的 id, 但不能得到的音乐 url, 调用此接口, 传入的音乐 id( 可多个 , 用逗号隔开 ), 可以获取对应的音乐的 url,未登录状态返回试听片段(返回字段包含被截取的正常歌曲的开始时间和结束时间)
+说明 : 使用歌单详情接口后 , 能得到的音乐的 id, 但不能得到的音乐 url, 调用此接口, 传入的音乐 id( 可多个 , 用逗号隔开 ), 可以获取对应的音乐的 url,未登录状态或者非会员返回试听片段(返回字段包含被截取的正常歌曲的开始时间和结束时间)
 
 > 注 : 部分用户反馈获取的 url 会 403,[hwaphon](https://github.com/hwaphon)找到的解决方案是当获取到音乐的 id 后，将 https://music.163.com/song/media/outer/url?id=id.mp3 以 src 赋予 Audio 即可播放
 
@@ -1219,10 +1311,6 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 **接口地址 :** `/search` 或者 `/cloudsearch`(更全)
 
 **调用例子 :** `/search?keywords= 海阔天空` `/cloudsearch?keywords= 海阔天空`
-
-返回数据如下图 :
-![搜索音乐](https://raw.githubusercontent.com/Binaryify/NeteaseCloudMusicApi/master/static/%E6%90%9C%E7%B4%A2.png)
-
 
 ### 默认搜索关键词
 说明 : 调用此接口 , 可获取默认搜索关键词
@@ -1414,7 +1502,9 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
 **接口地址 :** `/homepage/block/page` 
 
-**可选参数 :** `refresh`: 是否刷新数据,默认为true
+**可选参数 :** `refresh`: 是否刷新数据,默认为false
+
+`cursor`: 上一条数据返回的cursor
 
 
 ### 首页-发现-圆形图标入口列表
@@ -1425,8 +1515,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
 ### 歌曲评论
 
-说明 : 调用此接口 , 传入音乐 id 和 limit 参数 , 可获得该音乐的所有评论 ( 不需要
-登录 )
+说明 : 调用此接口 , 传入音乐 id 和 limit 参数 , 可获得该音乐的所有评论 ( 不需要登录 )
 
 **必选参数 :** `id`: 音乐 id
 
@@ -1452,7 +1541,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
 `id` : 资源 id
 
-`tpye`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
+`type`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
 
 ```
 0: 歌曲
@@ -1570,7 +1659,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
 `id` : 资源 id
 
-`tpye`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
+`type`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
 
 ```
 0: 歌曲
@@ -1602,7 +1691,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 **必选参数 :**   
 `id` : 资源 id, 如歌曲 id,mv id  
 
-`tpye`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
+`type`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
 ```
 0: 歌曲
 
@@ -1642,7 +1731,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
 `t` : 是否点赞 ,1 为点赞 ,0 为取消点赞
 
-`tpye`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
+`type`: 数字 , 资源类型 , 对应歌曲 , mv, 专辑 , 歌单 , 电台, 视频对应以下类型
 
 ```
 0: 歌曲
@@ -1722,7 +1811,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
    `t`:1 发送, 2 回复
 
-   `tpye`: 数字,资源类型,对应歌曲,mv,专辑,歌单,电台,视频对应以下类型
+   `type`: 数字,资源类型,对应歌曲,mv,专辑,歌单,电台,视频对应以下类型
 
    ```
    0: 歌曲
@@ -1756,7 +1845,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
    `t`:0 删除
 
-   `tpye`: 数字,资源类型,对应歌曲,mv,专辑,歌单,电台,视频对应以下类型  
+   `type`: 数字,资源类型,对应歌曲,mv,专辑,歌单,电台,视频对应以下类型  
    
 
    ```
@@ -1847,7 +1936,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
 ### 获取歌曲详情
 
-说明 : 调用此接口 , 传入音乐 id(支持多个 id, 用 `,` 隔开), 可获得歌曲详情(注意:歌曲封面现在需要通过专辑内容接口获取)
+说明 : 调用此接口 , 传入音乐 id(支持多个 id, 用 `,` 隔开), 可获得歌曲详情
 
 **必选参数 :** `ids`: 音乐 id, 如 `ids=347230`
 
@@ -1855,8 +1944,7 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 
 **调用例子 :** `/song/detail?ids=347230`,`/song/detail?ids=347230,347231`
 
-返回数据如下图 :
-![获取歌曲详情](https://raw.githubusercontent.com/Binaryify/NeteaseCloudMusicApi/master/static/songDetail.png)
+
 
 ### 获取专辑内容
 
@@ -1867,9 +1955,6 @@ mp3url 不能直接用 , 可通过 `/song/url` 接口传入歌曲 id 获取具�
 **接口地址 :** `/album`
 
 **调用例子 :** `/album?id=32311`
-
-返回数据如下图 :
-![获取专辑内容](https://raw.githubusercontent.com/Binaryify/NeteaseCloudMusicApi/master/static/%E4%B8%93%E8%BE%91.png)
 
 
 ### 专辑动态信息
@@ -2410,13 +2495,11 @@ MV 点赞转发评论数数据
 ### 获取推荐视频
 说明 : 调用此接口, 可获取推荐视频,分页参数只能传入offset 
 
-**必选参数 :** `id`: videoGroup 的 id  
-
 **可选参数 :** `offset`: 默认0
 
-**接口地址 :** `/video/group`
+**接口地址 :** `/video/timeline/recommend`
 
-**调用例子 :** `/video/timeline/recommend`
+**调用例子 :** `/video/timeline/recommend?offset=10`
 
 ### 相关视频
 
@@ -2534,6 +2617,33 @@ type : 地区
 **接口地址 :** `/user/cloud/del`
 
 **调用例子 :** `/user/cloud/del`
+
+### 云盘上传
+说明 : 登录后调用此接口,使用`'Content-Type': 'multipart/form-data'`上传mp3 formData(name为'songFile'),可上传歌曲到云盘  
+
+参考: https://github.com/Binaryify/NeteaseCloudMusicApi/blob/master/public/cloud.html  
+
+访问地址: http://localhost:3000/cloud.html)  
+
+支持命令行调用,参考module_example目录下`song_upload.js`
+
+**接口地址 :** `/cloud`
+
+**调用例子 :** `/cloud`
+
+### 云盘歌曲信息匹配纠正
+说明 : 登录后调用此接口,可对云盘歌曲信息匹配纠正,如需取消匹配,asid需要传0  
+
+**必选参数 :**   
+`uid`: 用户id   
+
+`sid`: 云盘的歌曲id   
+
+`asid`: 要匹配的歌曲id 
+
+**接口地址 :** `/cloud/match`
+
+**调用例子 :** `/cloud/match?uid=32953014&sid=aaa&asid=bbb` `/cloud/match?uid=32953014&sid=bbb&asid=0`
 
 ### 电台banner
 说明 : 调用此接口,可获取电台banner
@@ -2844,7 +2954,7 @@ type='1009' 获取其 id, 如`/search?keywords= 代码时间 &type=1009`
 
 **调用例子 :** `/send/text?user_ids=32953014&msg=test`,`/send/text?user_ids=32953014,475625142&msg=test`
 
-### 发送私信音乐
+### 发送私信(带歌曲)
 
 说明 : 登录后调用此接口 , 传入用户 id 和要发送的信息,音乐id, 可以发送音乐私信,返回内容为历史私信
 
@@ -2852,12 +2962,29 @@ type='1009' 获取其 id, 如`/search?keywords= 代码时间 &type=1009`
 
 `user_ids` : 用户 id,多个需用逗号隔开
 
+`id` : 要发送音乐的id
+
 `msg` : 要发送的信息
 
 **接口地址 :** `/send/song`
 
 **调用例子 :** `/send/song?user_ids=1&id=351318&msg=测试`
 
+### 发送私信(带专辑)
+
+说明 : 登录后调用此接口 , 传入用户 id 和要发送的信息,专辑id, 可以发送专辑私信,返回内容为消息id
+
+**必选参数 :**
+
+`user_ids` : 用户 id,多个需用逗号隔开
+
+`id` : 要发送专辑的id
+
+`msg` : 要发送的信息
+
+**接口地址 :** `/send/album`
+
+**调用例子 :** `/send/album?user_ids=1&id=351318&msg=测试`
 
 ### 发送私信(带歌单)
 
@@ -3132,6 +3259,12 @@ type='1009' 获取其 id, 如`/search?keywords= 代码时间 &type=1009`
 
 **调用例子 :** `/artist/new/mv?limit=1` `/artist/new/mv?limit=1&before=1602777625000`
 
+### 一起听状态
+说明 :登录后调用此接口可获取一起听状态
+
+**接口地址 :** `/listen/together/status`
+
+**调用例子 :** `/listen/together/status`
 
 ### batch批量请求接口
 说明 : 登录后调用此接口 ,传入接口和对应原始参数(原始参数非文档里写的参数,需参考源码),可批量请求接口
